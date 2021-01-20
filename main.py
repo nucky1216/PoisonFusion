@@ -3,7 +3,9 @@ import numpy as np
 from scipy import signal
 from PIL import Image
 from scipy import sparse
+from scipy.sparse.linalg import spsolve
 
+import time
 debug=0
 dst=10
 def maskBinary(mask):
@@ -20,7 +22,9 @@ def showImg(img):
     cv2.waitKey(0)
     return
 def FilterLaplace(img,valid='same'):
-    Laplace=np.array([[0,1,0],[1,-4,1],[0,1,0]])
+    Laplace=np.array([[0,1,0],
+                      [1,-4,1],
+                      [0,1,0]])
     # GradX=np.array([[0,-1,1]])
     # GradY = np.array([[0, 0, 0], [0, -1, 0], [0, 1, 0]])
     #
@@ -37,7 +41,7 @@ def FilterLaplace(img,valid='same'):
     print('imgR shape:',imgB.shape)
 
 
-    LaplaceImagB=signal.convolve2d(imgB,Laplace,valid)
+    LaplaceImagB = signal.convolve2d(imgB, Laplace, valid)
     LaplaceImagG = signal.convolve2d(imgG, Laplace, valid)
     LaplaceImagR = signal.convolve2d(imgR, Laplace, valid)
     print('Laplace shape:',LaplaceImagB.shape)
@@ -48,6 +52,7 @@ def FilterLaplace(img,valid='same'):
 
 
 def GenerateA(h,w):
+    begin=time.time()
     A = np.zeros(h * w * h * w,dtype=np.int8)
     A = np.reshape(A, [h * w, w * h])
     for i in range(0,h):
@@ -73,19 +78,20 @@ def GenerateA(h,w):
     print('Generated A shape:',A.shape)
     print('Gerneate A shape:',A.shape)
     A_compress = sparse.csr_matrix(A)
-    sparse.save_npz('./Sparse/Bear3.npz', A_compress)
+    #sparse.save_npz('./Sparse/Bear3.npz', A_compress)
+    sparse.save_npz('I.npz', A_compress)
+    print('================Time cost:',time.time()-begin,'===========')
 def SolveF(convoledG,h,w):
-    #A_sparse = sparse.load_npz('I.npz')
-    A_sparse = sparse.load_npz('./Sparse/Bear3.npz')
-    A = A_sparse.toarray()
-    print('A shape:',A.shape)
-    g=convoledG.flatten()
+    A_sparse = sparse.load_npz('I.npz')
+    #A_sparse = sparse.load_npz('./Sparse/Bear3.npz')
+    A = A_sparse
+    print('A shape:',A.shape,)
+    g=convoledG.flatten().astype(np.int16)
 
-    print('A shape:',A.shape,'g shape:',g.shape)
-    X=np.linalg.solve(A,g)
-
+    print('A shape:',A.shape,'g shape:',g.shape,'A dytpe',A.dtype,'g dtpe',g.dtype)
+    #X=np.linalg.solve(A,g).astype(np.uint)
+    X=spsolve(A,g)
     F=np.reshape(X,[h,w])
-
     return F
 def SourceImg(img,back_img,mask,pos):
 
@@ -96,7 +102,7 @@ def SourceImg(img,back_img,mask,pos):
     maskSingle=mask[:,:,0]
 
     print('maskSingle shape:',maskSingle.shape)
-    showImg(back_img )
+    #showImg(back_img )
     Bb,Gb,Rb=FilterLaplace(back_img)
     B, G, R = FilterLaplace(img)
 
@@ -122,8 +128,7 @@ def SourceImg(img,back_img,mask,pos):
     IMAGE2[:, :, 0] = Bb
     IMAGE2[:, :, 1] = Gb
     IMAGE2[:, :, 2] = Rb
-    showImg(IMAGE2)
-
+    #showImg(IMAGE2)
 
     h, w, ch = img.shape
 
@@ -137,7 +142,7 @@ def SourceImg(img,back_img,mask,pos):
     IMAGE[:, :, 0] = FB
     IMAGE[:, :, 1] = FG
     IMAGE[:, :, 2] = FR
-    showImg(IMAGE)
+    #showImg(IMAGE)
     cv2.imwrite('readycover.jpg',IMAGE)
     print('=========================Equation has Solved======================')
     return IMAGE
@@ -148,8 +153,6 @@ def Fusion(img,img_bg,pos):
     print('Fusion img shape :',img.shape)
     img=cv2.imread('readycover.jpg')
     newImage[py:py+h,px:px+w,:]=img
-    #showImg(newImage)
-    showImg(newImage)
     cv2.imwrite('./Output/Final.jpg', newImage)
 
 def FindBoundary(mask2D):
@@ -410,55 +413,55 @@ def ReBuiltNewMask(Path,TAG_Matrix,mask):
 if __name__=='__main__':
 
     # #============OpenCV Poisson Merge==================
-    # img_s=cv2.imread('I.jpg')
     #
-    # img_t=cv2.imread('bg.jpg')
-    # mask_obj=cv2.imread('I_obj_mask.jpg')
-    # img_s=cv2.imread('./Input/Bear.png')
-    # img_t=cv2.imread('./Input/beach.png')
-    # mask=cv2.imread('./Input/Bear_mask.png')
     # #mask= 255*np.ones(img_s.shape,img_s.dtype)
+    # begin_time=time.time()
+    # img_s=cv2.imread('./Input/Bear3.jpg')
+    # img_t=cv2.imread('./Input/beach.png')
+    # mask=cv2.imread('./Input/Bear3_mask.jpg')
     #
     # w,h,ch=img_t.shape
-    # pos=(h//2-400,w//2+200)
+    # pos=(h//2-300,w//2+200)
     # mix_clone=cv2.seamlessClone(img_s,img_t,mask,pos,cv2.MIXED_CLONE)
     # normal_clone = cv2.seamlessClone(img_s, img_t, mask, pos, cv2.NORMAL_CLONE)
     #
-    # showImg(mix_clone)
+    #
     # cv2.imwrite('./Output/MergeByCV2_Mixed2.jpg',mix_clone)
     # cv2.imwrite('./Output/MergeByCV2_Normal2.jpg', mix_clone)
-
-
-    #============Poisson Merge==================
+    # print('============OpenCV Time Cost:', time.time() - begin_time, '====================')
+    # showImg(mix_clone)
+    #
+    #
+    # #============Poisson Merge==================
+    PoissonTime=time.time()
     # img_s=cv2.imread('I.jpg')
-    #
     # img_t=cv2.imread('bg.jpg')
-    # mask_obj=cv2.imread('I_obj_mask.jpg')
-    # mask_manual = cv2.imread('I_manual_mask2.jpg')
-    #
-    # back_img = cv2.imread('bg.jpg')
+    # #mask_obj=cv2.imread('I_obj_mask.jpg')
+    # mask_obj = cv2.imread('I_manual_mask2.jpg')
+
 
     img_s=cv2.imread('./Input/Bear3.jpg')
     img_t=cv2.imread('./Input/beach.png')
     mask_obj=cv2.imread('./Input/Bear3_mask.jpg')
 
-    h,w,_=img_s.shape
-    GenerateA(h,w)
 
     mask=maskBinary(mask_obj)
     print(' mask shape:' , mask.shape)
     print('img_s shape:', img_s.shape)
 
-    #img=SourceImg(img_s,back_img,mask)
+    # h,w,_=img_s.shape
+    # GenerateA(h,w)# Generate the coefficient matrix
 
-    x=500
-    y=350
+    x=50
+    y=430
     pos=(x,y)
 
     Readyimg = SourceImg(img_s,img_t, mask,pos)
     Fusion(Readyimg ,img_t,pos)
     print('Merge Done!')
-
+    print('=================Time cost:',-(PoissonTime-time.time()),'s =============')
+    img=cv2.imread('Output/Final.jpg')
+    showImg(img)
     # #============Rebult a New Mask with Dijstra==================
 
     # img_s=cv2.imread('I.jpg')
