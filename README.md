@@ -1,2 +1,2 @@
 # PoisonFusion
-The project of matrix computation
+The usable codes are in branch 'Poison'
